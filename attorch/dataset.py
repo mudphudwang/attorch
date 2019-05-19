@@ -179,7 +179,7 @@ class H5SequenceSet(TransformDataset):
         if item in self._fid:
             item = self._fid[item]
             if isinstance(item, h5py._hl.dataset.Dataset):
-                item = item.value
+                item = item[()]
                 if item.dtype.char == 'S':  # convert bytes to univcode
                     item = item.astype(str)
                 return item
