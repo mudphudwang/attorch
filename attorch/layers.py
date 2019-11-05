@@ -3,7 +3,6 @@ import scipy.signal
 import torch
 from math import ceil
 from torch import nn as nn
-# from .module import Module
 from torch.nn import Parameter
 from torch.nn import functional as F
 from torch.nn.init import xavier_normal
@@ -1277,3 +1276,22 @@ def check_group_sorted(x, group_size, axis=-1):
         return 0
     else:
         return 1
+
+
+def transform_tbatch(transform, x, *args, **kwargs):
+    """
+    Performs batch operation meant for X-D tensors (n, *dims) on (X+1)-D tensors ({n, t}, {t, n}, *dims)
+
+    Args:
+        x (torch.Tensor): Tensor to be transformed.
+            x.size() = torch.Size([{n, t}, {t, n}, *dims]) (batch/time in the first/second dimesions. Order doesn't matter)
+        transform (callable): transformation operation
+    Returns:
+        tensor of size: torch.Size([{n, t}, {t, n}, *dims_transformed])
+    """
+    d0, d1, *dims = x.size()
+    x_flat = x.reshape(d0 * d1, *dims)
+    out = transform(x_flat, *args, **kwargs)
+    dims_transformed = out.size()[1:]
+    out = out.view(d0, d1, *dims_transformed)
+    return out
