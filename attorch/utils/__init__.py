@@ -9,8 +9,11 @@ from scipy.interpolate import InterpolatedUnivariateSpline
 from torch.autograd import Variable
 import torch
 import time
-
 import sys
+
+from .logging import logger, all_logging_disabled
+from .numeric import set_seed
+
 
 class silence:
     """
@@ -20,6 +23,7 @@ class silence:
         with silent():
           code_that_would_print_stuff()
     """
+
     def __enter__(self):
         self._original_stdout = sys.stdout
         sys.stdout = None
@@ -40,6 +44,7 @@ def namedtuple_with_defaults(typename, field_names, default_values=()):
         prototype = T(*default_values)
     T.__new__.__defaults__ = tuple(prototype)
     return T
+
 
 def make_dot(var):
     """from https://github.com/szagoruyko/functional-zoo/blob/master/visualize.py"""
@@ -74,7 +79,7 @@ def get_static_nonlinearity(y_hat, y):
     """
     Compute static nonlinearity by computing a linear spline from y_hat[:,i].sort to y[:,i].sort 
     independently for each column i in y_hat and y.
-    
+
     Args:
         y_hat: example x dimension array 
         y:     example x dimension array
@@ -107,10 +112,11 @@ def downsample(images, downsample_by=4):
     h /= h.sum()
     H = h[:, np.newaxis] * h[np.newaxis, :]
 
-    down = lambda img: signal.convolve2d(img.astype(np.float32), H, mode='same',
-                                         boundary='symm')[downsample_by // 2::downsample_by,
-                       downsample_by // 2::downsample_by]
+    def down(img): return signal.convolve2d(img.astype(np.float32), H, mode='same',
+                                            boundary='symm')[downsample_by // 2::downsample_by,
+                                                             downsample_by // 2::downsample_by]
     return np.stack([down(img) for img in images], axis=0)
+
 
 @contextlib.contextmanager
 def timing(name):
