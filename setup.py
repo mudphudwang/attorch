@@ -12,5 +12,5 @@ setup(
     author_email='sinz@bcm.edu',
     url='https://github.com/atlab/attorch',
     packages=find_packages(exclude=[]),
-    install_requires=['numpy', 'tqdm','gitpython', 'datajoint'],
+    install_requires=['numpy', 'tqdm','gitpython', 'datajoint', 'torch'],
 )
