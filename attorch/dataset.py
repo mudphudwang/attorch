@@ -5,7 +5,7 @@ from collections import defaultdict, namedtuple, Mapping
 from glob import glob
 from torch.utils.data import Dataset, DataLoader, SequentialSampler, WeightedRandomSampler
 import os
-from .utils import logger
+from .utils import logger, set_seed
 
 
 class Invertible:
