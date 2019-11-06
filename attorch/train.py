@@ -162,7 +162,7 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
         model.train(False)
         set_seed(seed)
         with torch.no_grad():
-            val_score = float(val_func(epoch_seed=seed))
+            val_score, val_finite = val_func(epoch_seed=seed)
         save_dict = init_save_dict(model, optimizer, scheduler, val_score, patience)
     else:
         # Load
@@ -187,7 +187,7 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
         save_dict['num_periods'] += 1
         save_dict['num_lrs'] = 0
 
-    if not np.isfinite(val_score).all():
+    if not val_finite:
         model.train(training_status)
         return save_dict, False
 
