@@ -195,7 +195,6 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
     model_finite = True
     while scheduler.last_epoch < max_epochs:
 
-        epoch_finite = True
         period = save_dict['num_periods'] + 1
         epoch = save_dict['epoch'][-1] + 1
         lr = optimizer.param_groups[0]['lr']
@@ -203,12 +202,12 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
 
         model.train(True)
         set_seed(epoch_seed)
-        train_score, epoch_finite = train_func(optimizer, epoch_seed=epoch_seed, desc=log_path)
+        train_score, train_finite = train_func(optimizer, epoch_seed=epoch_seed, desc=log_path)
 
         model.train(False)
         set_seed(epoch_seed)
         with torch.no_grad():
-            val_score = float(val_func(epoch_seed=epoch_seed))
+            val_score, val_finite = val_func(epoch_seed=epoch_seed)
 
         save_dict['period'].append(period)
         save_dict['epoch'].append(epoch)
@@ -236,7 +235,7 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
         with open(log_path, 'a') as f:
             f.write(log_str)
 
-        if (not np.isfinite(val_score).all()) or (not epoch_finite):
+        if (not train_finite) or (not val_finite):
             model_finite = False
             break
 
