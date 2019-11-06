@@ -3,8 +3,10 @@ import numpy as np
 import torch
 from collections import defaultdict, namedtuple, Mapping
 from glob import glob
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader, SequentialSampler, WeightedRandomSampler
 import os
+from .utils import logger
+
 
 class Invertible:
     def inv(self, y):
@@ -149,7 +151,6 @@ class NumpyZSet(TransformDataset):
             raise AttributeError('Item {} not found in {}'.format(item, self.__class__.__name__))
 
 
-
 class H5SequenceSet(TransformDataset):
     def __init__(self, filename, *data_groups, transforms=None):
         self._fid = h5py.File(filename, 'r')
@@ -186,3 +187,135 @@ class H5SequenceSet(TransformDataset):
             return item
         else:
             raise AttributeError('Item {} not found in {}'.format(item, self.__class__.__name__))
+
+
+class DatasetBase(Dataset):
+
+    def __init__(self, input_shape=None, output_shape=None, tier='train', split_seed=0,
+                 mode='unlabelled', augment=True):
+        assert tier in ['train', 'validation', 'test'], 'tier must be one of ["train", "validation", "test"]'
+
+        self.tier = tier
+        self.split_seed = int(split_seed)
+        self.augment = augment
+        self._default_augment = self.augment
+
+        self.mode = mode
+        self._default_mode = self.mode
+
+        self._input_shape = self.standard_input_shape(input_shape)
+        self._output_shape = self.standard_output_shape(output_shape)
+
+    @property
+    def input_shape(self):
+        return self._input_shape
+
+    @property
+    def output_shape(self):
+        return self._output_shape
+
+    @staticmethod
+    def standard_input_shape(shape):
+        return None if shape is None else torch.Size(shape)
+
+    @staticmethod
+    def standard_output_shape(shape):
+        return None if shape is None else torch.Size(shape)
+
+    @property
+    def sample_weights(self):
+        return torch.ones(len(self))
+
+    @property
+    def mode(self):
+        return self._mode
+
+    @property
+    def default_mode(self):
+        return self._default_mode
+
+    @mode.setter
+    def mode(self, mode):
+        if mode is None:
+            self._mode = self.default_mode
+        else:
+            assert mode in self.modes, 'mode must be one of {}'.format(self.modes)
+            self._mode = mode
+
+    @property
+    def modes(self):
+        return ['unlabelled']
+
+    @property
+    def augment(self):
+        return self._augment
+
+    @property
+    def default_augment(self):
+        return self._default_augment
+
+    @augment.setter
+    def augment(self, augment):
+        if augment is None:
+            self._augment = self.default_augment
+        else:
+            self._augment = bool(augment)
+            logger.info('Setting {} augmentation to {}'.format(self.__class__.__name__, self._augment))
+
+
+class DynamicDatasetBase(DatasetBase):
+
+    def __init__(self, input_shape=None, output_shape=None, tier='train', split_seed=0,
+                 mode='unlabelled', augment=True, max_frames=1, num_frames=None):
+
+        super().__init__(input_shape, output_shape, tier, split_seed, mode, augment)
+
+        self._max_frames = int(max_frames)
+        num_frames = self._max_frames if num_frames is None else min(num_frames, self._max_frames)
+        self._num_frames = int(num_frames)
+        self._default_frames = self._num_frames
+
+    @property
+    def max_frames(self):
+        return self._max_frames
+
+    @property
+    def num_frames(self):
+        return self._num_frames
+
+    @property
+    def default_frames(self):
+        return self._default_frames
+
+    @num_frames.setter
+    def num_frames(self, num_frames):
+        if num_frames is None:
+            self._num_frames = self.default_frames
+        else:
+            assert num_frames > 0
+            self._num_frames = min(num_frames, self.max_frames)
+
+
+def dynamic_dataloader(dataset):
+
+    def loader(batch_size=4, iterations=None, num_workers=1, seed=0, mode=None, num_frames=None,
+               augment=None):
+
+        dataset.mode = mode
+        dataset.num_frames = num_frames
+        dataset.augment = augment
+
+        def worker_init_fn(wid):
+            set_seed(num_workers * seed + wid)
+
+        if iterations is None:
+            sampler = SequentialSampler(dataset)
+        else:
+            replacement = False if batch_size * iterations <= len(dataset) else True
+            sampler = WeightedRandomSampler(dataset.sample_weights, batch_size * iterations,
+                                            replacement=replacement)
+
+        return DataLoader(dataset=dataset, batch_size=batch_size, sampler=sampler,
+                          num_workers=num_workers, worker_init_fn=worker_init_fn,
+                          pin_memory=True)
+    return loader
