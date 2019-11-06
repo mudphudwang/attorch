@@ -192,7 +192,7 @@ class H5SequenceSet(TransformDataset):
 class DatasetBase(Dataset):
 
     def __init__(self, input_shape=None, output_shape=None, tier='train', split_seed=0,
-                 mode='unlabelled', augment=True):
+                 mode=None, augment=True):
         assert tier in ['train', 'validation', 'test'], 'tier must be one of ["train", "validation", "test"]'
 
         self.tier = tier
@@ -200,7 +200,7 @@ class DatasetBase(Dataset):
         self.augment = augment
         self._default_augment = self.augment
 
-        self.mode = mode
+        self.mode = self.modes[0] if mode is None else mode
         self._default_mode = self.mode
 
         self._input_shape = self.standard_input_shape(input_shape)
@@ -266,7 +266,7 @@ class DatasetBase(Dataset):
 class DynamicDatasetBase(DatasetBase):
 
     def __init__(self, input_shape=None, output_shape=None, tier='train', split_seed=0,
-                 mode='unlabelled', augment=True, max_frames=1, num_frames=None):
+                 mode=None, augment=True, max_frames=1, num_frames=None):
 
         super().__init__(input_shape, output_shape, tier, split_seed, mode, augment)
 
@@ -294,6 +294,7 @@ class DynamicDatasetBase(DatasetBase):
         else:
             assert num_frames > 0
             self._num_frames = int(min(num_frames, self.max_frames))
+        logger.info('Setting frame size to {}'.format(self._num_frames))
 
     @property
     def frame_index(self):
@@ -310,14 +311,14 @@ class DynamicDatasetBase(DatasetBase):
         return np.arange(start_frame, end_frame)
 
 
-def dynamic_dataloader(dataset):
+def dynamic_dataloader(dataset, batch_size=4, iterations=None, num_workers=1,
+                       mode=None, num_frames=None, augment=None):
 
-    def loader(batch_size=4, iterations=None, num_workers=1, seed=0, mode=None, num_frames=None,
-               augment=None):
+    dataset.mode = mode
+    dataset.num_frames = num_frames
+    dataset.augment = augment
 
-        dataset.mode = mode
-        dataset.num_frames = num_frames
-        dataset.augment = augment
+    def loader(seed=0):
 
         def worker_init_fn(wid):
             set_seed(num_workers * seed + wid)
