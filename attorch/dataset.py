@@ -293,7 +293,21 @@ class DynamicDatasetBase(DatasetBase):
             self._num_frames = self.default_frames
         else:
             assert num_frames > 0
-            self._num_frames = min(num_frames, self.max_frames)
+            self._num_frames = int(min(num_frames, self.max_frames))
+
+    @property
+    def frame_slice(self):
+        if self.num_frames != self.max_frames:
+            if self.augment:
+                max_start_frame = (self.max_frames - self.num_frames)
+                start_frame = np.round(np.random.uniform(0.0, 1.0) * max_start_frame)
+                start_frame = start_frame.astype(np.int).item()
+            else:
+                start_frame = (self.max_frames - self.num_frames) // 2
+        else:
+            start_frame = 0
+        end_frame = start_frame + self.num_frames
+        return slice(start_frame, end_frame)
 
 
 def dynamic_dataloader(dataset):
