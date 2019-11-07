@@ -171,6 +171,7 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
         optimizer.load_state_dict(save_dict['optimizer'])
         scheduler.load_state_dict(save_dict['scheduler'])
         val_score = save_dict['val_score'][-1]
+        val_finite = True
 
     def step(scheduler, score):
         lr_old = scheduler.optimizer.param_groups[0]['lr']
