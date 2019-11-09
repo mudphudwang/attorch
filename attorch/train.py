@@ -210,6 +210,10 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
         with torch.no_grad():
             val_score, val_finite = val_func(epoch_seed=epoch_seed)
 
+        if (not train_finite) or (not val_finite):
+            model_finite = False
+            break
+
         save_dict['period'].append(period)
         save_dict['epoch'].append(epoch)
         save_dict['lr'].append(lr)
@@ -235,10 +239,6 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
                 save_dict['best_period'], save_dict['best_epoch'], save_dict['best_score'])
         with open(log_path, 'a') as f:
             f.write(log_str)
-
-        if (not train_finite) or (not val_finite):
-            model_finite = False
-            break
 
         step(scheduler, val_score)
 
