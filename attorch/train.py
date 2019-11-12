@@ -249,6 +249,7 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
             assert dj.conn().is_connected
 
         if reset:
+            logger.info('Resetting training schedule')
             scheduler._reset()
 
     model.train(training_status)
