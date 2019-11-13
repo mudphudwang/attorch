@@ -182,11 +182,11 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
         save_dict['num_lrs'] += int(not np.allclose(lr_old, lr_new))
 
     step(scheduler, val_score)
+
     if beginning:
         scheduler._reset()
         logger.info('Starting training at epoch {}'.format(scheduler.last_epoch))
-
-    if (scheduler.last_epoch >= max_epochs) or (save_dict['num_lrs'] >= max_lrs):
+    elif (scheduler.last_epoch >= max_epochs) or (save_dict['num_lrs'] >= max_lrs):
         optimizer = RAdam(model.params, lr=lr)
         scheduler = ReduceLROnPlateau(optimizer, mode=mode, factor=factor, patience=patience,
                                       threshold=threshold, threshold_mode=threshold_mode)
