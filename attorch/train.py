@@ -164,6 +164,7 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
         with torch.no_grad():
             val_score, val_finite = val_func(epoch_seed=seed)
         save_dict = init_save_dict(model, optimizer, scheduler, val_score, patience)
+        beginning = True
     else:
         # Load
         logger.info('Loading model, optimizer, scheduler from checkpoint')
@@ -172,6 +173,7 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
         scheduler.load_state_dict(save_dict['scheduler'])
         val_score = save_dict['val_score'][-1]
         val_finite = True
+        beginning = False
 
     def step(scheduler, score):
         lr_old = scheduler.optimizer.param_groups[0]['lr']
@@ -180,6 +182,9 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
         save_dict['num_lrs'] += int(not np.allclose(lr_old, lr_new))
 
     step(scheduler, val_score)
+    if beginning:
+        scheduler._reset()
+        logger.info('Starting training at epoch {}'.format(scheduler.last_epoch))
 
     if (scheduler.last_epoch >= max_epochs) or (save_dict['num_lrs'] >= max_lrs):
         optimizer = RAdam(model.params, lr=lr)
