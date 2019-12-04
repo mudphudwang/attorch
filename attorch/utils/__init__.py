@@ -10,6 +10,8 @@ from torch.autograd import Variable
 import torch
 import time
 import sys
+from subprocess import call
+import os
 
 from .logging import logger, all_logging_disabled
 from .numeric import set_seed
@@ -73,6 +75,12 @@ def make_dot(var):
 
     add_nodes(var.creator)
     return dot
+
+
+def save_dot(dot, fname, dpi=250):
+    dot.save(fname)
+    call(['dot', fname, '-Tpng', '-Gdpi={}'.format(dpi), '-o', '{}.png'.format(fname)])
+    os.remove(fname)
 
 
 def get_static_nonlinearity(y_hat, y):
