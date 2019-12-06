@@ -207,7 +207,7 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
 
         model.train(True)
         set_seed(epoch_seed)
-        train_score, train_finite, reset = train_func(optimizer, epoch_seed=epoch_seed, desc=log_path)
+        train_score, train_finite = train_func(optimizer, epoch_seed=epoch_seed, desc=log_path)
 
         model.train(False)
         set_seed(epoch_seed)
@@ -251,10 +251,6 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
 
         if epoch % 10 == 0:
             assert dj.conn().is_connected
-
-        if reset:
-            logger.info('Resetting training schedule')
-            scheduler._reset()
 
     model.train(training_status)
     return save_dict, model_finite
