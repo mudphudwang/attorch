@@ -278,10 +278,11 @@ def clip_grad_norm_(parameters, max_norm, norm_type=2):
     norm_type = float(norm_type)
     total_norm = 0
     for p in parameters:
-        if not torch.isfinite(p.grad).all().item():
+        param_norm = p.grad.data.norm(norm_type).item()
+        if np.isfinite(param_norm).item():
+            total_norm += param_norm ** norm_type
+        else:
             return
-        param_norm = p.grad.data.norm(norm_type)
-        total_norm += param_norm.item() ** norm_type
     total_norm = total_norm ** (1. / norm_type)
     clip_coef = max_norm / (total_norm + 1e-6)
     if clip_coef < 1:
