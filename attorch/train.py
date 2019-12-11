@@ -5,6 +5,7 @@ import datajoint as dj
 import numpy as np
 import torch
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+import math
 
 from .optimizers import RAdam
 from .utils import logger, set_seed
@@ -266,7 +267,8 @@ def clip_grad_norm_(parameters, max_norm, norm_type=2):
         parameters (Iterable[Tensor] or Tensor): an iterable of Tensors or a
             single Tensor that will have gradients normalized
         max_norm (float or int): max norm of the gradients
-        norm_type (float or int): type of the used p-norm.
+        norm_type (float or int): type of the used p-norm. Can be ``'inf'`` for
+            infinity norm.
 
     Returns:
         Total norm of the parameters (viewed as a single vector).
@@ -277,13 +279,21 @@ def clip_grad_norm_(parameters, max_norm, norm_type=2):
     max_norm = float(max_norm)
     norm_type = float(norm_type)
     total_norm = 0
-    for p in parameters:
-        param_norm = p.grad.data.norm(norm_type).item()
-        if np.isfinite(param_norm).item():
-            total_norm += param_norm ** norm_type
-        else:
-            return
-    total_norm = total_norm ** (1. / norm_type)
+    if norm_type == math.inf:
+        for p in parameters:
+            param_norm = p.grad.data.abs().max().item()
+            if np.isfinite(param_norm).item():
+                total_norm = param_norm if param_norm > total_norm else total_norm
+            else:
+                return
+    else:
+        for p in parameters:
+            param_norm = p.grad.data.norm(norm_type).item()
+            if np.isfinite(param_norm).item():
+                total_norm += param_norm ** norm_type
+            else:
+                return
+        total_norm = total_norm ** (1. / norm_type)
     clip_coef = max_norm / (total_norm + 1e-6)
     if clip_coef < 1:
         for p in parameters:
