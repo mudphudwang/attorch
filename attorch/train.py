@@ -7,7 +7,8 @@ import torch
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 import math
 
-from .optimizers import RAdam
+from .optimizers import AdamR
+from torch.optim import Adam, AdamW
 from .utils import logger, set_seed
 
 
@@ -131,7 +132,7 @@ def init_save_dict(model, optimizer, scheduler, val_score, patience=10):
 
 def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.1,
              patience=10, threshold=0.0001, threshold_mode='rel', max_lrs=1, max_epochs=100,
-             save_dir='checkpoint', save_dict=None):
+             optimizer_type='adamr', save_dir='checkpoint', save_dict=None):
     logger.info('\tSeed: {}'.format(seed))
     logger.info('\tLearning rate: {}'.format(lr))
     logger.info('\tMode: {}'.format(mode))
@@ -141,6 +142,8 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
     logger.info('\tThreshold mode: {}'.format(threshold_mode))
     logger.info('\tMax lrs: {}'.format(max_lrs))
     logger.info('\tMax epochs: {}'.format(max_epochs))
+
+    optimizers = {'adam': Adam, 'adamr': AdamR, 'adamw': AdamW}
 
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
@@ -153,7 +156,7 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
     training_status = model.training
     model.train(True)
 
-    optimizer = RAdam(model.params, lr=lr)
+    optimizer = optimizers[optimizer_type](model.params, lr=lr)
     scheduler = ReduceLROnPlateau(optimizer, mode=mode, factor=factor, patience=patience,
                                   threshold=threshold, threshold_mode=threshold_mode)
 
@@ -187,7 +190,7 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
 
     if (scheduler.last_epoch + 1 >= max_epochs) or (save_dict['num_lrs'] >= max_lrs):
         logger.info('Restarting training')
-        optimizer = RAdam(model.params, lr=lr)
+        optimizer = optimizers[optimizer_type](model.params, lr=lr)
         scheduler = ReduceLROnPlateau(optimizer, mode=mode, factor=factor, patience=patience,
                                       threshold=threshold, threshold_mode=threshold_mode)
         save_dict['num_periods'] += 1
@@ -199,7 +202,7 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
 
     torch.backends.cudnn.benchmark = True
     model_finite = True
-    while scheduler.last_epoch + 1 < max_epochs:
+    while scheduler.last_epoch < max_epochs:
 
         period = save_dict['num_periods'] + 1
         epoch = save_dict['epoch'][-1] + 1

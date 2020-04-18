@@ -2,7 +2,7 @@ import math
 import torch
 
 
-class RAdam(torch.optim.Optimizer):
+class AdamR(torch.optim.Optimizer):
     """
     Adapted from https://github.com/LiyuanLucasLiu/RAdam
     """
