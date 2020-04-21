@@ -142,6 +142,7 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
     logger.info('\tThreshold mode: {}'.format(threshold_mode))
     logger.info('\tMax lrs: {}'.format(max_lrs))
     logger.info('\tMax epochs: {}'.format(max_epochs))
+    logger.info('\tOptimizer type: {}'.format(optimizer_type))
 
     optimizers = {'adam': Adam, 'adamr': AdamR, 'adamw': AdamW}
 
