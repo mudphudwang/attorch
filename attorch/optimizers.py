@@ -12,6 +12,7 @@ class AdamR(torch.optim.Optimizer):
 
         super().__init__(params, defaults)
 
+    @torch.no_grad()
     def step(self, closure=None, inactive_params=None):
 
         loss = None
@@ -29,9 +30,9 @@ class AdamR(torch.optim.Optimizer):
                 if p.grad is None:
                     continue
 
-                p.data.mul_(1 - group['lr'] * group['weight_decay'])
+                p.mul_(1 - group['lr'] * group['weight_decay'])
 
-                grad = p.grad.data
+                grad = p.grad
                 if grad.is_sparse:
                     raise RuntimeError('RAdam does not support sparse gradients')
 
@@ -39,14 +40,14 @@ class AdamR(torch.optim.Optimizer):
 
                 if len(state) == 0:
                     state['step'] = 0
-                    state['exp_avg'] = torch.zeros_like(p.data)
-                    state['exp_avg_sq'] = torch.zeros_like(p.data)
+                    state['exp_avg'] = torch.zeros_like(p)
+                    state['exp_avg_sq'] = torch.zeros_like(p)
 
                 exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
                 beta1, beta2 = group['betas']
 
-                exp_avg_sq.mul_(beta2).addcmul_(1 - beta2, grad, grad)
-                exp_avg.mul_(beta1).add_(1 - beta1, grad)
+                exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
+                exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
 
                 state['step'] += 1
                 beta2_t = beta2 ** state['step']
@@ -59,10 +60,10 @@ class AdamR(torch.optim.Optimizer):
                         (1 - beta2_t) * (N_sma - 4) / (N_sma_max - 4) * (N_sma - 2)
                         / N_sma * N_sma_max / (N_sma_max - 2)) / (1 - beta1 ** state['step'])
                     denom = exp_avg_sq.sqrt().add_(group['eps'])
-                    p.data.addcdiv_(-step_size, exp_avg, denom)
+                    p.addcdiv_(exp_avg, denom, value=-step_size)
                 else:
                     step_size = group['lr'] / (1 - beta1 ** state['step'])
-                    p.data.add_(-step_size, exp_avg)
+                    p.add_(exp_avg, alpha=-step_size)
 
         return loss
 
