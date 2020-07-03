@@ -1,7 +1,7 @@
 import h5py
 import numpy as np
 import torch
-from collections import defaultdict, namedtuple, Mapping
+from collections import defaultdict, namedtuple
 from glob import glob
 from torch.utils.data import Dataset, DataLoader, SequentialSampler, WeightedRandomSampler
 import os
@@ -197,12 +197,10 @@ class DatasetBase(Dataset):
 
         self.tier = tier
         self.split_seed = int(split_seed)
-        self.augment = augment
-        self._default_augment = self.augment
 
         self.mode = self.modes[0] if mode is None else mode
-        self._default_mode = self.mode
 
+        self._augment = bool(augment)
         self._input_shape = self.standard_input_shape(input_shape)
         self._output_shape = self.standard_output_shape(output_shape)
 
@@ -230,17 +228,10 @@ class DatasetBase(Dataset):
     def mode(self):
         return self._mode
 
-    @property
-    def default_mode(self):
-        return self._default_mode
-
     @mode.setter
     def mode(self, mode):
-        if mode is None:
-            self._mode = self.default_mode
-        else:
-            assert mode in self.modes, 'mode must be one of {}'.format(self.modes)
-            self._mode = mode
+        assert mode in self.modes, 'mode must be one of {}'.format(self.modes)
+        self._mode = mode
 
     @property
     def modes(self):
@@ -250,17 +241,10 @@ class DatasetBase(Dataset):
     def augment(self):
         return self._augment
 
-    @property
-    def default_augment(self):
-        return self._default_augment
-
     @augment.setter
     def augment(self, augment):
-        if augment is None:
-            self._augment = self.default_augment
-        else:
-            self._augment = bool(augment)
-            logger.info('Setting {} augmentation to {}'.format(self.__class__.__name__, self._augment))
+        self._augment = bool(augment)
+        logger.info('Setting {} augmentation to {}'.format(self.__class__.__name__, self._augment))
 
 
 class DynamicDatasetBase(DatasetBase):
@@ -273,7 +257,6 @@ class DynamicDatasetBase(DatasetBase):
         self._max_frames = int(max_frames)
         num_frames = self._max_frames if num_frames is None else min(num_frames, self._max_frames)
         self._num_frames = int(num_frames)
-        self._default_frames = self._num_frames
 
     @property
     def max_frames(self):
@@ -283,17 +266,10 @@ class DynamicDatasetBase(DatasetBase):
     def num_frames(self):
         return self._num_frames
 
-    @property
-    def default_frames(self):
-        return self._default_frames
-
     @num_frames.setter
     def num_frames(self, num_frames):
-        if num_frames is None:
-            self._num_frames = self.default_frames
-        else:
-            assert num_frames > 0
-            self._num_frames = int(min(num_frames, self.max_frames))
+        assert num_frames > 0
+        self._num_frames = int(min(num_frames, self.max_frames))
         logger.info('Setting frame size to {}'.format(self._num_frames))
 
     @property
@@ -314,9 +290,14 @@ class DynamicDatasetBase(DatasetBase):
 def dynamic_dataloader(dataset, batch_size=4, iterations=None, num_workers=1,
                        mode=None, num_frames=None, augment=None):
 
-    dataset.mode = mode
-    dataset.num_frames = num_frames
-    dataset.augment = augment
+    if mode is not None:
+        dataset.mode = mode
+
+    if num_frames is not None:
+        dataset.num_frames = num_frames
+
+    if augment is not None:
+        dataset.augment = augment
 
     def loader(seed=0):
 
