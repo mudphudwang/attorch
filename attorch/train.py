@@ -1,5 +1,6 @@
 import time
 import os
+from copy import deepcopy
 from collections import OrderedDict, deque
 import datajoint as dj
 import numpy as np
@@ -121,12 +122,14 @@ def early_stopping(model, objective, interval=5, patience=20, start=0, max_iter=
 
 
 def init_save_dict(model, optimizer, scheduler, val_score, patience=10):
-    save_dict = {'period': [0], 'epoch': [0], 'lr': [optimizer.param_groups[0]['lr']],
-                 'train_score': [None], 'val_score': [val_score], 'val_score_sma': [val_score],
-                 'val_score_deque': deque([val_score for _ in range(patience)]),
-                 'model': model.state_dict(), 'optimizer': optimizer.state_dict(),
-                 'scheduler': scheduler.state_dict(), 'best_period': 0,  'best_epoch': 0,
-                 'best_score': val_score, 'num_periods': 0, 'num_lrs': 0}
+    save_dict = {
+        'period': [0], 'epoch': [0], 'lr': [optimizer.param_groups[0]['lr']],
+        'train_score': [None], 'val_score': [val_score], 'val_score_sma': [val_score],
+        'val_score_deque': deque([val_score for _ in range(patience)]),
+        'final_model': model.state_dict(), 'best_model': deepcopy(model.state_dict()),
+        'optimizer': optimizer.state_dict(), 'scheduler': scheduler.state_dict(),
+        'best_period': 0,  'best_epoch': 0, 'best_score': val_score, 'num_periods': 0, 'num_lrs': 0
+    }
     return save_dict
 
 
@@ -149,8 +152,7 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    save_path = os.path.join(save_dir, 'final.pt')
-    best_path = os.path.join(save_dir, 'best.pt')
+    save_path = os.path.join(save_dir, 'save_dict.pt')
     log_path = os.path.join(save_dir, 'log.txt')
 
     score_sign = {'min': 1, 'max': -1}[mode]
@@ -173,7 +175,7 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
     else:
         # Load
         logger.info('Loading model, optimizer, scheduler from checkpoint')
-        model.load_state_dict(save_dict['model'])
+        model.load_state_dict(save_dict['final_model'])
         optimizer.load_state_dict(save_dict['optimizer'])
         scheduler.load_state_dict(save_dict['scheduler'])
         val_score = save_dict['val_score'][-1]
@@ -231,7 +233,7 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
         save_dict['val_score_deque'].popleft()
         save_dict['val_score_deque'].append(val_score)
         save_dict['val_score_sma'].append(np.mean(save_dict['val_score_deque']).item())
-        save_dict['model'] = model.state_dict()
+        save_dict['final_model'] = model.state_dict()
         save_dict['optimizer'] = optimizer.state_dict()
         save_dict['scheduler'] = scheduler.state_dict()
 
@@ -239,7 +241,7 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
             save_dict['best_score'] = save_dict['val_score_sma'][-1]
             save_dict['best_period'] = period
             save_dict['best_epoch'] = epoch
-            torch.save(model.state_dict(), best_path, pickle_protocol=3)
+            save_dict['best_model'] = deepcopy(model.state_dict())
         torch.save(save_dict, save_path, pickle_protocol=3)
 
         log_str = '{} : Current period: {}, Current epoch: {}, Current score: {:.4f}, ' \
@@ -258,7 +260,7 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
             assert dj.conn().is_connected
 
     model.train(training_status)
-    return save_dict, model_finite
+    return save_dict, save_path, model_finite
 
 
 def clip_grad_norm_(parameters, max_norm, norm_type=2):
