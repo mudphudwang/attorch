@@ -1,11 +1,11 @@
 import h5py
 import numpy as np
 import torch
-from collections import defaultdict, namedtuple
+from collections import defaultdict, namedtuple, OrderedDict
 from glob import glob
 from torch.utils.data import Dataset, DataLoader, SequentialSampler, WeightedRandomSampler
 import os
-from .utils import logger, set_seed
+from .utils import logger, set_seed, all_logging_disabled
 
 
 class Invertible:
@@ -191,51 +191,21 @@ class H5SequenceSet(TransformDataset):
 
 class DatasetBase(Dataset):
 
-    def __init__(self, input_shape=None, output_shape=None, tier='train', split_seed=0,
-                 mode=None, augment=True):
-        assert tier in ['train', 'validation', 'test'], 'tier must be one of ["train", "validation", "test"]'
-
-        self.tier = tier
-        self.split_seed = int(split_seed)
-
-        self.mode = self.modes[0] if mode is None else mode
-
-        self._augment = bool(augment)
-        self._input_shape = self.standard_input_shape(input_shape)
-        self._output_shape = self.standard_output_shape(output_shape)
-
-    @property
-    def input_shape(self):
-        return self._input_shape
-
-    @property
-    def output_shape(self):
-        return self._output_shape
-
-    @staticmethod
-    def standard_input_shape(shape):
-        return None if shape is None else torch.Size(shape)
-
-    @staticmethod
-    def standard_output_shape(shape):
-        return None if shape is None else torch.Size(shape)
+    def __init__(self, item_shapes=[], augment=False):
+        self.item_shapes = item_shapes
+        self.augment = bool(augment)
 
     @property
     def sample_weights(self):
         return torch.ones(len(self))
 
     @property
-    def mode(self):
-        return self._mode
+    def item_shapes(self):
+        return self._item_shapes
 
-    @mode.setter
-    def mode(self, mode):
-        assert mode in self.modes, 'mode must be one of {}'.format(self.modes)
-        self._mode = mode
-
-    @property
-    def modes(self):
-        return ['unlabelled']
+    @item_shapes.setter
+    def item_shapes(self, item_shapes):
+        self._item_shapes = tuple(torch.Size(map(int, s)) for s in item_shapes)
 
     @property
     def augment(self):
@@ -249,18 +219,9 @@ class DatasetBase(Dataset):
 
 class DynamicDatasetBase(DatasetBase):
 
-    def __init__(self, input_shape=None, output_shape=None, tier='train', split_seed=0,
-                 mode=None, augment=True, max_frames=1, num_frames=None):
-
-        super().__init__(input_shape, output_shape, tier, split_seed, mode, augment)
-
-        self._max_frames = int(max_frames)
-        num_frames = self._max_frames if num_frames is None else min(num_frames, self._max_frames)
-        self._num_frames = int(num_frames)
-
-    @property
-    def max_frames(self):
-        return self._max_frames
+    def __init__(self, item_shapes=[], augment=False, num_frames=None):
+        super().__init__(item_shapes, augment)
+        self.num_frames = num_frames
 
     @property
     def num_frames(self):
@@ -268,30 +229,15 @@ class DynamicDatasetBase(DatasetBase):
 
     @num_frames.setter
     def num_frames(self, num_frames):
-        assert num_frames > 0
-        self._num_frames = int(min(num_frames, self.max_frames))
+        if num_frames is None:
+            self._num_frames = None
+        else:
+            assert num_frames > 0
+            self._num_frames = int(num_frames)
         logger.info('Setting frame size to {}'.format(self._num_frames))
 
-    @property
-    def frame_index(self):
-        if self.num_frames != self.max_frames:
-            if self.augment:
-                max_start_frame = (self.max_frames - self.num_frames)
-                start_frame = np.round(np.random.uniform(0.0, 1.0) * max_start_frame)
-                start_frame = start_frame.astype(np.int).item()
-            else:
-                start_frame = (self.max_frames - self.num_frames) // 2
-        else:
-            start_frame = 0
-        end_frame = start_frame + self.num_frames
-        return np.arange(start_frame, end_frame)
 
-
-def dynamic_dataloader(dataset, batch_size=4, iterations=None, num_workers=1,
-                       mode=None, num_frames=None, augment=None):
-
-    if mode is not None:
-        dataset.mode = mode
+def dynamic_dataloader(dataset, batch_size=4, iterations=None, num_workers=1, num_frames=None, augment=None):
 
     if num_frames is not None:
         dataset.num_frames = num_frames
