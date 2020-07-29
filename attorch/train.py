@@ -191,7 +191,7 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
     if from_checkpoint:
         step(scheduler, val_score)
 
-    if (scheduler.last_epoch + 1 >= max_epochs) or (save_dict['num_lrs'] >= max_lrs):
+    if (scheduler.last_epoch >= max_epochs) or (save_dict['num_lrs'] >= max_lrs):
         logger.info('Restarting training')
         optimizer = optimizers[optimizer_type](model.params, lr=lr)
         scheduler = ReduceLROnPlateau(optimizer, mode=mode, factor=factor, patience=patience,
