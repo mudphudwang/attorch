@@ -121,11 +121,11 @@ def early_stopping(model, objective, interval=5, patience=20, start=0, max_iter=
 # ------------ Dynamic training schedule with checkpoints ------------------
 
 
-def init_save_dict(model, optimizer, scheduler, val_score, patience=10):
+def init_save_dict(model, optimizer, scheduler, val_score, window=10):
     save_dict = {
         'period': [0], 'epoch': [0], 'lr': [optimizer.param_groups[0]['lr']],
         'train_score': [None], 'val_score': [val_score], 'val_score_sma': [val_score],
-        'val_score_deque': deque([val_score for _ in range(patience)]),
+        'val_score_deque': deque([val_score for _ in range(window)]),
         'final_model': model.state_dict(), 'best_model': deepcopy(model.state_dict()),
         'optimizer': optimizer.state_dict(), 'scheduler': scheduler.state_dict(),
         'best_period': 0,  'best_epoch': 0, 'best_score': val_score, 'num_periods': 0, 'num_lrs': 0
@@ -135,7 +135,7 @@ def init_save_dict(model, optimizer, scheduler, val_score, patience=10):
 
 def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.1,
              patience=10, threshold=0.0001, threshold_mode='rel', max_lrs=1, max_epochs=100,
-             optimizer_type='adamr', save_dir='checkpoint', save_dict=None):
+             window=10, optimizer_type='adamr', save_dir='checkpoint', save_dict=None):
     logger.info('\tSeed: {}'.format(seed))
     logger.info('\tLearning rate: {}'.format(lr))
     logger.info('\tMode: {}'.format(mode))
@@ -145,6 +145,7 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
     logger.info('\tThreshold mode: {}'.format(threshold_mode))
     logger.info('\tMax lrs: {}'.format(max_lrs))
     logger.info('\tMax epochs: {}'.format(max_epochs))
+    logger.info('\tWindow: {}'.format(window))
     logger.info('\tOptimizer type: {}'.format(optimizer_type))
 
     optimizers = {'adam': Adam, 'adamr': AdamR, 'adamw': AdamW}
@@ -170,7 +171,7 @@ def schedule(model, train_func, val_func, seed=0, lr=0.01, mode='min', factor=0.
         set_seed(seed)
         with torch.no_grad():
             val_score, val_finite = val_func(epoch_seed=seed)
-        save_dict = init_save_dict(model, optimizer, scheduler, val_score, patience)
+        save_dict = init_save_dict(model, optimizer, scheduler, val_score, window)
         from_checkpoint = False
     else:
         # Load
